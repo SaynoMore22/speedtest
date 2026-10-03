@@ -43,8 +43,8 @@ def fetch(url: str, timeout: float) -> tuple[int, float]:
 
 
 def format_bytes(size: float) -> str:
-    for unit in ("Б", "КБ", "МБ", "ГБ"):
-        if size < 1000 or unit == "ГБ":
+    for unit in ("Б", "КБ", "МБ"):
+        if size < 1000:
             return f"{size:.2f} {unit}"
         size /= 1000
     return f"{size:.2f} ГБ"
@@ -123,9 +123,13 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
+def run() -> int:
     try:
-        sys.exit(main())
+        return main()
     except KeyboardInterrupt:
         print("\nПрервано пользователем.", file=sys.stderr)
-        sys.exit(130)
+        return 130
+
+
+if __name__ == "__main__":
+    sys.exit(run())
