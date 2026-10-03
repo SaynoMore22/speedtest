@@ -7,9 +7,11 @@
 """
 
 import argparse
+import http.client
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 DEFAULT_URL = "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg"
@@ -31,8 +33,11 @@ def fetch(url: str, timeout: float) -> tuple[int, float]:
     size = 0
     start = time.perf_counter()
     with urllib.request.urlopen(request, timeout=timeout) as response:
+        expected = response.headers.get("Content-Length")
         while chunk := response.read(CHUNK_SIZE):
             size += len(chunk)
+    if expected is not None and expected.isdigit() and size != int(expected):
+        raise IOError(f"соединение оборвалось: получено {size} из {expected} байт")
     elapsed = time.perf_counter() - start
     return size, elapsed
 
@@ -66,10 +71,18 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.requests < 1:
         parser.error("количество запросов должно быть >= 1")
+    if args.timeout <= 0:
+        parser.error("таймаут должен быть > 0")
+    if urllib.parse.urlparse(args.url).scheme not in ("http", "https"):
+        parser.error("URL должен начинаться с http:// или https://")
     return args
 
 
 def main() -> int:
+    # Чтобы кириллица не ломалась при перенаправлении вывода в файл/пайп на Windows.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     args = parse_args()
     print(f"URL: {args.url}")
     print(f"Запросов: {args.requests}\n")
@@ -81,7 +94,7 @@ def main() -> int:
     for i in range(1, args.requests + 1):
         try:
             size, elapsed = fetch(args.url, args.timeout)
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
             print(f"[{i:>2}/{args.requests}] ошибка: {exc}")
             continue
         ok += 1
